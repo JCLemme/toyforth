@@ -1,0 +1,8 @@
+
+
+
+New Plan!
+
+run_word needs to be a bytecode interpreter. Just simple enough to execute calls to function tokens, jumps back and forth, etc.
+The plan to put constants into anonymous words is scuttled a bit by the concept of compiling working on the top word in the dictionary, as those anonymous words become the new "top words".
+One solution is to have a top_word pointer that refers to the word being compiled. Another is to build in such constant finding into the bytecode.

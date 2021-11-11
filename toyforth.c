@@ -4,8 +4,8 @@
 #include <stdint.h>
 #include <limits.h>
 
-#define dbgprintf(...)
-//#define dbgprintf printf
+//#define dbgprintf(...)
+#define dbgprintf printf
 
 // Dictionary and function that runs other words
 typedef struct dict_entry
@@ -17,7 +17,7 @@ typedef struct dict_entry
 } dict_entry;
 
 dict_entry dictionary[1024];
-int dict_size = 0;
+int dict_size = 0, top_word = 0;
 
 int add_word(dict_entry entry)
 {
@@ -39,10 +39,12 @@ int no_compile_word(int exe_token)
 int run_word(int exe_token)
 {
     int* wordlist = (int*)dictionary[exe_token].data;
-    int count = 0;
 
-    for(int w=0;w<wordlist[0];w++)
-        (*dictionary[w].code_intp)(w);
+    for(int w=1;w<=wordlist[0];w++)
+    {
+        if(wordlist[w] != -1)
+            (*dictionary[ wordlist[w] ].code_intp)(wordlist[w]);
+    }
 
     return 0;
 }
@@ -113,6 +115,8 @@ int word_dup_intp(int exe_token)
     return 0;
 }
 
+int compiling_state = 0;
+
 int word_tick_intp(int exe_token)
 {
     // Find length of word to attempt searching for
@@ -131,7 +135,7 @@ int word_tick_intp(int exe_token)
     
     while(found >= 0)
     {
-        dbgprintf("Checking %s vs %.*s\n", dictionary[found].name, word_len, input_buffer);
+        dbgprintf("Checking %s vs %.*s\n", dictionary[found].name, word_len, input_buffer+input_ptr);
         if(strncmp(dictionary[found].name, input_buffer+input_ptr, word_len) == 0)
         {
             push_data(found);
@@ -149,6 +153,11 @@ int word_tick_intp(int exe_token)
     return 0;
 }
 
+int word_number_exec(int exe_token)
+{
+    push_data((int)dictionary[exe_token].data);
+    return 0;
+}
 
 int word_number_intp(int exe_token)
 {
@@ -185,8 +194,23 @@ int word_number_intp(int exe_token)
         converted_num *= 10;
         converted_num += (int)next_digit - 0x30;
     }
+    
+    converted_num *= neg_mult;
 
-    push_data(converted_num * neg_mult);
+    if(compiling_state == 0)
+    {
+        // Put number on stack
+        push_data(converted_num);
+        dbgprintf("## Put %d onto data stack\n", converted_num);
+    }
+    else
+    {
+        // Store constant
+        int* wordlist = (int*)dictionary[top_word].data;
+        wordlist[wordlist[0]+1] = add_word((dict_entry){"", word_number_exec, echo_word, (void*)(converted_num)});
+        wordlist[0]++;
+        dbgprintf("## Put %d into top_word: %s\n", converted_num, dictionary[top_word].name);
+    }
 
     return 0;
 }
@@ -195,7 +219,23 @@ int word_execute_intp(int exe_token)
 {
     int token = pop_data();
     dbgprintf("### EXECUTEing word %d: %s\n", token, dictionary[token].name);
-    dictionary[token].code_intp(token);
+
+    if(compiling_state == 1)
+    {
+        // Ask the word what we should compile into the new definition
+        int new_token = dictionary[token].code_comp(token);
+
+        // Add token to the end of the last compiled word
+        int* wordlist = (int*)dictionary[top_word].data;
+        wordlist[ wordlist[0] + 1 ] = new_token;
+        wordlist[0]++;
+    }
+    else
+    {
+        // Do whatever the word wants to do
+        dictionary[token].code_intp(token);
+    }
+
     return 0;
 }
 
@@ -347,6 +387,40 @@ int word_printstr_comp(int exe_token)
     return new_str_word;
 }
 
+int word_colon_intp(int exe_token)
+{
+    // Set up a new entry
+    top_word = add_word((dict_entry){"", run_word, echo_word, (void*)0});
+    dictionary[top_word].data = (void*)malloc(sizeof(int)*1024);
+    ((int*)(dictionary[top_word].data))[0] = 0;
+
+    // Get a name for the next word
+    input_snap_past_space();
+    int name_len = input_len_until(' ');
+    dictionary[top_word].name = (char*)malloc(sizeof(int)*(name_len+1));
+    strncpy(dictionary[top_word].name, input_buffer+input_ptr, name_len);
+    dictionary[top_word].name[name_len] = '\0';
+    input_ptr += name_len;
+
+    // Set compile state
+    compiling_state = 1;
+
+    return 0;
+}
+
+int word_semicolon_intp(int exe_token)
+{
+    // Turn off compilation and bypass EXECUTE fucking us over
+    compiling_state = 0;
+
+    return -1;
+}
+
+
+
+
+
+
 
 // Main
 
@@ -366,8 +440,10 @@ int main(int argc, char** argv)
     add_word((dict_entry){"drop", word_drop_intp, echo_word, (void*)0});
     add_word((dict_entry){"+", word_plus_intp, echo_word, (void*)0});
     add_word((dict_entry){"-", word_minus_intp, echo_word, (void*)0});
+    add_word((dict_entry){":", word_colon_intp, echo_word, (void*)0});
+    add_word((dict_entry){";", word_semicolon_intp, word_semicolon_intp, (void*)0});
     
-    strcpy(input_buffer, "2 4 + dup . 1 - .    ");
+    strcpy(input_buffer, ": ding 2 2 + . ; ding");
 
     input_ptr = 0;
     word_quit_intp(0);
