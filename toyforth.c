@@ -4,6 +4,9 @@
 #include <stdint.h>
 #include <limits.h>
 
+#define dbgprintf(...)
+//#define dbgprintf printf
+
 // Dictionary and function that runs other words
 typedef struct dict_entry
 {
@@ -59,6 +62,15 @@ void push_rtrn(int data)    { rtrn_stack[rtrn_ptr] = data; rtrn_ptr++; }
 int  pop_rtrn()             { rtrn_ptr--; return rtrn_stack[rtrn_ptr]; }
 int  peek_rtrn()            { return rtrn_stack[rtrn_ptr-1]; }
 
+
+void stack_printer()
+{
+    dbgprintf("sp -> [%d] \n", data_stack[stak_ptr]);
+    dbgprintf("top    %d  \n", data_stack[stak_ptr-1]);
+    dbgprintf("top-1  %d  \n", data_stack[stak_ptr-2]);
+    dbgprintf("top-2  %d  \n", data_stack[stak_ptr-3]);
+}
+
 // Input stream
 char input_buffer[1024];
 int input_ptr = 0;
@@ -67,7 +79,7 @@ int input_len_until(char tok)
 {
     int len = 0;
 
-    while(input_buffer[input_ptr+len] != tok)
+    while(input_buffer[input_ptr+len] != tok && input_buffer[input_ptr+len] != '\0')
         len++;
 
     return len;
@@ -75,7 +87,7 @@ int input_len_until(char tok)
 
 void input_snap_to_space()
 {
-    if(input_buffer[input_ptr] == ' ')
+    if(input_buffer[input_ptr] == ' ' || input_buffer[input_ptr] == '\0')
         return;
 
     input_ptr += input_len_until(' ');
@@ -105,14 +117,22 @@ int word_tick_intp(int exe_token)
 {
     // Find length of word to attempt searching for
     int word_len = input_len_until(' ');
-printf("## Call to TICK: found word from %d to %d, '%.*s'\n", input_ptr, word_len, word_len, input_buffer+input_ptr);
+    dbgprintf("## Call to TICK: found word from %d to %d, '%.*s'\n", input_ptr, word_len, word_len, input_buffer+input_ptr);
+
+    // Abort if there isn't actually a word
+    if(word_len == 0)
+    {
+        push_data(-1);
+        return 0;
+    }
 
     // Search down the dictionary
     int found = dict_size-1;
     
     while(found >= 0)
     {
-        if(strncmp(dictionary[found].name, input_buffer, word_len) == 0)
+        dbgprintf("Checking %s vs %.*s\n", dictionary[found].name, word_len, input_buffer);
+        if(strncmp(dictionary[found].name, input_buffer+input_ptr, word_len) == 0)
         {
             push_data(found);
             break;
@@ -136,6 +156,7 @@ int word_number_intp(int exe_token)
     int num_len = input_len_until(' ');
     int converted_num = 0;
     int neg_mult = 1;
+    dbgprintf("## Call to >NUMBER: found candidate from %d to %d, '%.*s'\n", input_ptr, num_len, num_len, input_buffer+input_ptr);
 
     if(input_buffer[input_ptr] == '-')
     {
@@ -173,7 +194,7 @@ int word_number_intp(int exe_token)
 int word_execute_intp(int exe_token)
 {
     int token = pop_data();
-printf("### EXECUTEing word %d: %s\n", token, dictionary[token].name);
+    dbgprintf("### EXECUTEing word %d: %s\n", token, dictionary[token].name);
     dictionary[token].code_intp(token);
     return 0;
 }
@@ -185,7 +206,7 @@ int word_interpret_intp(int exe_token)
     // Hop to next word
     input_snap_past_space();
  
-printf("# Top of INTERPRET: %d\n", input_ptr);
+    dbgprintf("# Top of INTERPRET: %d\n", input_ptr);
 
     // Attempt to run this word
     int input_backup = input_ptr; // should this be put on stack?
@@ -197,6 +218,8 @@ printf("# Top of INTERPRET: %d\n", input_ptr);
     }
     else
     {
+        pop_data();
+
         // Restore input pointer and see if it's a number
         input_ptr = input_backup;
         word_number_intp(exe_token);
@@ -204,10 +227,15 @@ printf("# Top of INTERPRET: %d\n", input_ptr);
         if(peek_data() == INT_MIN)
         {
             pop_data();
-            interpreter_error = 1;
+
+            if(input_len_until(' ') == 0)
+                interpreter_error = 0;
+            else
+                interpreter_error = 1;
         }
     }
 
+    stack_printer();
     return 0;
 }
 
@@ -228,9 +256,24 @@ int word_quit_intp(int exe_token)
     return 0;
 }
 
+int word_plus_intp(int exe_token)
+{
+    int a = pop_data(), b = pop_data();
+    push_data(a+b);
+    return 0;
+}
+
+int word_minus_intp(int exe_token)
+{
+    int a = pop_data(), b = pop_data();
+    push_data(b-a);
+    return 0;
+}
+
+
 int word_dot_intp(int exe_token)
 {
-    printf("%d", pop_data());
+    printf(" %d", pop_data());
     return 0;
 }
 
@@ -321,8 +364,10 @@ int main(int argc, char** argv)
     add_word((dict_entry){"execute", word_execute_intp, echo_word, (void*)0});
     add_word((dict_entry){"dup", word_dup_intp, echo_word, (void*)0});
     add_word((dict_entry){"drop", word_drop_intp, echo_word, (void*)0});
+    add_word((dict_entry){"+", word_plus_intp, echo_word, (void*)0});
+    add_word((dict_entry){"-", word_minus_intp, echo_word, (void*)0});
     
-    strcpy(input_buffer, ".\" hello world\" 42 emit cr");
+    strcpy(input_buffer, "2 4 + dup . 1 - .    ");
 
     input_ptr = 0;
     word_quit_intp(0);
