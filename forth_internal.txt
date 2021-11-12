@@ -6,3 +6,29 @@ New Plan!
 run_word needs to be a bytecode interpreter. Just simple enough to execute calls to function tokens, jumps back and forth, etc.
 The plan to put constants into anonymous words is scuttled a bit by the concept of compiling working on the top word in the dictionary, as those anonymous words become the new "top words".
 One solution is to have a top_word pointer that refers to the word being compiled. Another is to build in such constant finding into the bytecode.
+
+
+
+
+- fith -
+
+Named dictionaries for namespaces - regular words still work as expected, but words with dots get called like "namespace address wordcall", so a word "dood" gets called in the main dictionary while "peep.dood" gets called under peep
+Or maybe "peep. dood", where namespace dot words read ahead to the next method and call it with a different tick
+So "peep. dood" would be "address of peep dictionary on stack, call tick, call special execute that pulls token and dictionary token"
+
+Cell typing - cells hold a type and data, for instance "integer 2" or "float 43.1" or "character b". Words can pull the type of the word on the stack and behave accordingly.
+
+Objects - 
+
+definition uses a special colon word, followed by a constructor
+when the word is called it reserves a new entry in the dict for it, like other variables, and runs the words provided
+
+:obj car  float fuel  integer passengers  ;obj
+
+methods are added later, allowing modification of the object on the fly. objects get their own namespaces
+a method call puts the address of the called object on the context stack, which can be pulled by the word self.
+or not? maybe a custom area...
+
+: car.fill 100 self car. fuel
+
+
