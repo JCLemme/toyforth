@@ -366,20 +366,71 @@ int word_interpret_intp(int exe_token)
     return 0;
 }
 
+int word_key_intp(int exe_token)
+{
+    char b;
+
+    do
+    {
+        b = getchar();
+    } while(b == EOF);
+
+    push_data(b);
+    return 0;
+}
+
+int word_words_intp(int exe_token)
+{
+    for(int w=dict_size-1;w>=0;w--)
+        printf("%s ", dictionary[w].name);
+
+    return 0;
+}
+
+int word_refill_intp(int exe_token)
+{
+    input_ptr = 0;
+    memset(input_buffer, 0x00, sizeof(char)*1024);
+
+    int scanning = 0;
+    char b;
+
+    while(scanning < 1024)
+    {
+        do { b = getchar(); } while(b == EOF);
+
+        if(b == '\n')
+            scanning = 2000;
+        else
+            input_buffer[scanning] = b;
+
+        scanning++;
+    }
+
+    return 0;
+}
+
 int word_quit_intp(int exe_token)
 {
-    while(input_buffer[input_ptr] != '\0' && input_ptr < 1024)
+    while(1)
     {
-        word_interpret_intp(exe_token);
+        printf(" ok \n");
 
-        if(interpreter_error != 0)
+        word_refill_intp(exe_token);
+
+        while(input_buffer[input_ptr] != '\0' && input_ptr < 1024)
         {
-            printf("INTERPRET reported an error\n");
-            break;
+            word_interpret_intp(exe_token);
+
+            if(interpreter_error != 0)
+            {
+                printf("INTERPRET reported an error\n");
+                interpreter_error = 0;
+                break;
+            }
         }
     }
 
-    printf(" ok \n");
     return 0;
 }
 
@@ -471,7 +522,8 @@ int word_printstr_comp(int exe_token)
     int new_str_word = add_word((dict_entry){"", word_printstr_exec, echo_word, (void*)new_str}); 
 
     // And return that word
-    return new_str_word;
+    echo_word(new_str_word);
+    return 0;
 }
 
 int word_colon_intp(int exe_token)
@@ -605,6 +657,9 @@ int main(int argc, char** argv)
     add_word((dict_entry){"cr", word_cr_intp, echo_word, (void*)0});
     add_word((dict_entry){".", word_dot_intp, echo_word, (void*)0});
     add_word((dict_entry){"emit", word_emit_intp, echo_word, (void*)0});
+    add_word((dict_entry){"key", word_key_intp, echo_word, (void*)0});
+    add_word((dict_entry){"words", word_words_intp, echo_word, (void*)0});
+    add_word((dict_entry){"refill", word_refill_intp, echo_word, (void*)0});
     add_word((dict_entry){"quit", word_quit_intp, echo_word, (void*)0});
     add_word((dict_entry){"interpret", word_interpret_intp, echo_word, (void*)0});
     add_word((dict_entry){"number", word_number_intp, echo_word, (void*)0});

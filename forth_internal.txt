@@ -32,3 +32,31 @@ or not? maybe a custom area...
 : car.fill 100 self car. fuel
 
 
+
+
+namespace
+
+s" ls -lh" ::System exec
+
+* puts string on stack
+* ::System puts the address of the System dictionary on the stack, then runs a tick...
+* exec is the function call to make within that dictionary, which is gobbled up by ::System
+* ::System runs an NamespaceExecute that gobbles the exe token and the dictionary pointer
+
+object references
+
+->porsche fill 
+--or--
+porsche ->car fill
+
+either words are typed (python style) or they are not typed (c style)
+typed words know their parent object, i.e. they are smarter than a simple datastore
+when created they add an additional word, ->name, that acts like a namespace call on that object
+otherwise you could do it forth style, where the object just puts its pointer on the stack
+then ->name calls would just be like namespace calls, but distinguished for some reason that i'd like to defend stronger than "just because"
+might be part of pointer enforcement - ::name calls don't expect anything special on the stack, but ->name calls expect the object reference up top
+when its execute call exits, it wants to clean that pointer up, thus it is mandatory to have
+
+actually while that idea is clever and might actually work as a way to implement objects in ansi forth, the former is better:
+* objects need to be type-aware anyway to make the cell stack and operator overloading work
+* fith is supposed to be better than forth, and avoid these kinds of pains
