@@ -60,3 +60,74 @@ when its execute call exits, it wants to clean that pointer up, thus it is manda
 actually while that idea is clever and might actually work as a way to implement objects in ansi forth, the former is better:
 * objects need to be type-aware anyway to make the cell stack and operator overloading work
 * fith is supposed to be better than forth, and avoid these kinds of pains
+
+overloading could happen by using dispatch words, i.e. operators that are type-aware
+for instance, plus could check the top of the stack for its type and call a plus function for that object
+
+porsche ferrari +
+
+
+
+
+-~-~-~-~-~-~-~-~-~-
+
+a simple hello world looks like forth
+
+." hello world" <-/ hello world ok
+
+and so does simple math and word definition
+
+: square dup * ; 9 square . <-/ 81 ok
+
+but there's more to it than that 
+
+3.5 9 + . <-/ 12.5 ok
+s" hello" 0x20 + s" world" + type <-/ hello world ok
+
+how does one overload operators in forth?
+well consider that the dictionary in forth appends words to its end
+and is scanned from end to beginning
+a word can take advantage of this by using THIS-LAST, which rescans the dictionary and calls the previous iteration of the calling word
+so let's say you want to have SQUARE make squares of negative numbers negative
+the traditional forth way would be to redefine square wholesale:
+
+: square dup * ; 3 square . <-/ 9 ok
+: square dup negative? if dup * -1 * else dup * then ; -3 square . <-/ -9 ok
+
+and for a word as simple as square this would probably be ok
+but why rewrite any code? instead let's just call the last definition of square from the new definition
+
+forget square <-/ ok
+: square dup negative? if this-last -1 * else this-last then ; -3 square . <-/ -9 ok
+
+this is handy for extending the behavior of words to do new things, like operator overloading 
+consider this example that adds floating point support to the integer addition operator
+
+: + dup isfloat? if swap dup isfloat? if float+ else tofloat float+ then else this-last then ; <-/ ok
+2 3 + . <-/ 5 ok
+2.0 3 + . <-/ 5.0 ok
+2.0 3.0 + . <-/ 5.0 ok
+
+actually that has a bug in it but i'm not worried about it, it demonstrates the point
+stacks in fifh are made up of cells, which hold a type and a value or a reference to a value 
+types are pointers to the type dictionary but don't worry about that now
+the point here is that types can be compared and evaluated like one would expect
+
+3 .type-of <-/ integer ok
+6.22 .type-of <-/ float ok
+1.1 type-of 4 type-of = . <-/ 0 ok
+
+fifh abandons the wordlists and vocabularies of forth in favor of namespaces, which are named dictionaries
+namespaces work like they do in c or java, but obviously more betterer
+
+s" uname -r" ->System exec <-/ 20.5.0 ok
+
+this works by defining a ->name word for a namespace that calls the following word in its own dictionary
+namespaces can be constructed with the namespace class of words, and new functions can be added with :name
+
+namespace Math <-/ ok
+:Math square dup * ; 3 ->Math square . <-/ 9 ok
+
+very similar to the namespace word is the object word, which defines a namespace but also defines construction semantics
+this works 
+object Car 
